@@ -1,0 +1,102 @@
+::This is Troublshooging an IP script.
+::One can use this to use Ping statistics, to identify
+::1. Server is reachable
+::2. Any packet loss
+::3. Any Network Latency is Present
+::
+::Script Auther: sahitya varma
+
+@echo off
+::Taking input for the IP address from User
+set /p IP=Enter IP to troubleshoot:
+echo You entered IP %IP%, and Script Execution started.
+
+::Using For loop to get Packet loss from the Ping
+for /F "tokens=8 delims== " %%H in ('ping -4 -n 4 %IP%^|findstr /i "loss"') do (
+::@echo Token processed %%H
+Set lost_percent_1=%%H
+)
+:: We are setting the lost percentage to a string variable and trimming the last character
+set lost_percent_str=%lost_percent_1:~1,-1%
+
+:: Now converting the String value into the Integer value
+set /a lost_percent_int = %lost_percent_str%
+
+Echo Packet lost_percent is %lost_percent_int%%
+
+:: If condition to produce dynamic messages to the SOC analyst
+if %lost_percent_int% EQU 100 (
+Set server_status = down
+
+Echo No packet was received, so either the server was down or no network connectivity. )
+if %lost_percent_int% EQU 0 (
+set server_status = up
+Echo -
+Echo The Server %IP% is up , All packets received
+Echo -
+Echo Script calculating the Latency
+::Calling the function latency
+call :latency)
+If %lost_percent_int% EQU 25 (
+set server_status = up
+Echo -
+Echo The server is up, but 1 out of 4 packets are received, which means packet loss and network connectivity issue persists.
+Echo -
+Echo Script calculating the Latency
+::Calling the function latency
+call :latency)
+
+If %lost_percent_int% EQU 50 (
+set server_status = up
+Echo -
+Echo The server is up, but 2 out of 4 packets are received, which means packet loss and network connectivity issue persists.
+Echo -
+Echo Script calculating the Latency
+::Calling the function latency
+call :latency)
+If %lost_percent_int% EQU 75 (
+set server_status = up
+Echo -
+Echo The server is up, but 3 out of 4 packets are received, which means packet loss and network connectivity issue persists.
+Echo -
+Echo Script calculating the Latency
+::Calling the function latency
+call :latency)
+
+timeout 60
+
+::latency function definition
+:latency
+:: Using For loop getting the Maximum time taken for the Ping command
+for /F "tokens=4 delims== " %%H in ('ping -4 -n 4 %IP%^|findstr /i "Max"') do (
+Echo -
+@echo The round trip time for the packet to reach is %%H
+:: Setting the Value into the Variable Var
+Set var=%%H
+)
+
+::Trim the value to get Number out of it
+set str2=%var:~0,-3%
+
+::Converting String to an intiger value.
+set /a latency = %str2%
+
+::Using If functions to give proper data to the SOC team member
+if %latency% LEQ 100  (
+if %latency% GTR 1 (
+Echo -
+echo So, There is no latency, network connectivity is good.) )
+
+if %latency% GTR 100 (
+if %latency% LSS 500 (
+echo -
+Echo There is a Latency of %latency% milliseconds, but manageable.))
+
+if %latency% GEQ 500 (
+echo -
+Echo "There is High Latency of %latency% milliseconds, So please expect delays")
+::Exiting the Function Latency
+EXIT /B 0
+
+::Opening the Window for 1 minute 40 seconds, i.e., 100 seconds. before window is closing
+timeout 120
